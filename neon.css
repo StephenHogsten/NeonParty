@@ -1,0 +1,26 @@
+
+body {
+  background-color: black;
+}
+
+.player {
+  background-color: pink;
+}
+
+.header {
+  background-color: blue;
+  color: $pink;
+  margin: auto;
+  margin-top: 5px;
+  text-align: center;
+}
+
+h1 {
+  color: pink;
+  text-align: center;
+  font-size: 3em;
+}
+
+canvas:focus {
+  outline: none;
+}
