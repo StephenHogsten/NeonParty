@@ -1,4 +1,33 @@
+//GAMEPLAN
+//Change colors
+//add player
+//make them move / have board be redrawn
+//fog of war
+//add game attributes (health, weapon, level)
+//place weapons
+//add interaction with game Objects
+//add 'portal' game object
+//tweak game object appearance
+
 gameObject = {};
+function getColor(cname) {
+	switch (cname) {
+		case 'orange': 
+			return "#ffa300";
+		case 'red': 
+			return "#cf0060";
+		case 'pink': 
+			return "#ff00ff";
+		case 'blue': 
+			return "#13a8fe";
+		case 'black': 
+			return "#000117";
+		case 'white': 
+			return '#FFFFFF';
+		default:
+			return 'green';
+	}
+}
 
 window.addEventListener('load', function() {
 	let c = document.getElementById('my-canvas')
@@ -9,14 +38,52 @@ window.addEventListener('load', function() {
 	let gameBoard = new GameBoard(w/pixelsPerGameUnit, h/pixelsPerGameUnit, pixelsPerGameUnit);
 	gameObject = gameBoard;
 	gameBoard.drawEverything(ctx);
+	document.addEventListener('keydown', (event)=>pressKey(event, gameBoard));
+	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 })
 
-function printGrid(grid) {
+function eachFrame(gameBoard, ctx) {
+	// console.log('new frame');
+	if (gameBoard.playerMoves[0] === 0 && gameBoard.playerMoves[1] === 0) {
+		requestAnimationFrame(() => eachFrame(gameBoard, ctx));
+		return;
+	}
+	gameBoard.drawEverything(ctx)
+	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
+}
+
+function pressKey(event, gameBoard) {
+	let playerSpeed = 1;
+	let playerXMove = playerYMove = 0;
+	let playerDirection;
+	switch (event.keyCode) {
+		case 37:
+			playerXMove = -playerSpeed;
+			playerDirection = 3;
+			break;
+		case 38:
+			playerYMove = -playerSpeed;
+			playerDirection = 0;
+			break;
+		case 39:
+			playerXMove = playerSpeed;
+			playerDirection = 1;
+			break;
+		case 40:
+			playerYMove = playerSpeed;
+			playerDirection = 2;
+			break;
+	}
+	gameBoard.playerMoves = [playerXMove, playerYMove];
+	gameBoard.playerDirection = playerDirection;
+}
+
+function getGrid(grid) {
 	g = [];
 	for (let j=0; j<grid.length; j++) {
 		g.push(grid.reduce((last, curr)=>last.concat(curr[j]), []).join(''));
 	}
-	console.log(g.join('\n'));
+	return g.join('\n');
 }
 
 function randomPos(xmin, xmax, X) {
@@ -32,9 +99,10 @@ class GameBoard {
     let x, y;
 		this.X = X;
 		this.Y = Y;
+		this.realX = X*ppg;
+		this.realY = Y*ppg;
 		this.ppg = ppg;
 		this.buildEmptyGrid();
-		console.log(printGrid(this.grid))
 		// create rooms
 		let roomCount = 20;
     this.rooms = [];
@@ -42,7 +110,7 @@ class GameBoard {
 		let newRoom;
 		let colorVal=10;
     for (let r=0; r<roomCount; r++) {
-      newRoom = new Room(this.grid, this.rooms, this.doors, X, Y, 'pink', ppg);
+			newRoom = new Room(this.grid, this.rooms, this.doors, X, Y, getColor('pink'), ppg);
 			if (!newRoom.hasOwnProperty('hasError')) {
 				this.rooms.push(newRoom); 
 			}
@@ -52,14 +120,18 @@ class GameBoard {
 		let monsterCount = 10;
 		this.monsters = [];
 		for (let m=0; m<monsterCount; m++) {
-			this.monsters.push(new Monster(this.grid, this.rooms, this.roomCount, ppg, 'red', 100, 15));
+			this.monsters.push(new Monster(this.grid, this.rooms, this.roomCount, ppg, 100, 15));
 		}
 		// add random health
 		let healthCount = 5;
 		this.healthCubes = [];
 		for (let h=0; h<healthCount; h++) {
-			this.healthCubes.push(new HealthCube(this.grid, this.rooms, this.roomCount, ppg, 'green', 10*Math.floor(3*Math.random()+1)));
+			this.healthCubes.push(new HealthCube(this.grid, this.rooms, this.roomCount, ppg, 10*Math.floor(3*Math.random()+1)));
 		}
+		// add player
+		this.player = new Player(this.grid, this.rooms, this.roomCount, ppg);
+		this.playerDirection = 0;
+		this.playerMoves = [0, 0];
 	}
 	buildEmptyGrid() {
 		// 0 means empty/wall, 
@@ -72,7 +144,7 @@ class GameBoard {
 	}
 	drawEverything(ctx) {
 		//background
-		ctx.fillStyle = 'white';
+		ctx.fillStyle = getColor('white');
 		ctx.fillRect(0, 0, this.realX, this.realY)
 		// rooms
 		for (let r=0; r<this.roomCount; r++) {
@@ -90,6 +162,8 @@ class GameBoard {
 		for (let h=0; h<this.healthCubes.length; h++) {
 			this.healthCubes[h].draw(ctx);
 		}
+		// player
+		this.player.draw(ctx, this.playerMoves, this.playerDirection, this.grid);
 	}
 }
 
@@ -261,10 +335,12 @@ class RoomObject {
 		this.color = color;
 		this.room = rooms[Math.floor(roomCount * Math.random())];	
 		let g = this.room.gamePos;
+		let X = grid.length;
+		let Y = grid[0].length;
 		let x, y;
 		while (true) {
-			x = randomPos(g.xpos, g.xpos + g.xdim);
-			y = randomPos(g.ypos, g.ypos + g.ydim);
+			x = randomPos(g.xpos, g.xpos + g.xdim, X);
+			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
 			if (grid[x][y] === 1) break;
 		}
 		this.gamePos = {x:x, y:y};
@@ -281,24 +357,68 @@ class RoomObject {
 }
 
 class Monster extends RoomObject{
-	constructor(grid, rooms, roomCount, ppg, color, health, damage) {
-		super(grid, rooms, roomCount, ppg, color);
+	constructor(grid, rooms, roomCount, ppg, health, damage) {
+		super(grid, rooms, roomCount, ppg, getColor('black'));
 		this.health = health;
 		this.damage = damage;
 	}
 }
 
 class Weapon extends RoomObject{
-	constructor(grid, rooms, roomCount, ppg, color, name, damage) {
-		super(grid, rooms, roomCount, ppg, color);
+	constructor(grid, rooms, roomCount, ppg, name, damage) {
+		super(grid, rooms, roomCount, ppg, getColor('blue'));
 		this.name = name; 
 		this.damage = damage;
 	}
 }
 
 class HealthCube extends RoomObject{
-	constructor(grid, rooms, roomCount, ppg, color, health) {
-		super(grid, rooms, roomCount, ppg, color);
+	constructor(grid, rooms, roomCount, ppg, health) {
+		super(grid, rooms, roomCount, ppg, getColor('orange'));
 		this.health = health;
+	}
+}
+
+class Player extends RoomObject {
+	constructor (grid, rooms, roomCount, ppg) {
+		super(grid, rooms, roomCount, ppg, getColor('red'));
+		this.color2 = getColor('orange');
+		this.health = 100;
+		this.damage = 5;
+		this.level = 1;
+		this.weapons = ['thumb paint', 'fine-tip paintbrush', 'extra-wide brush', 'paint roller', 'semi-automatic paintball blaster'];
+		this.whichWeapon = 0;
+	}
+	draw(ctx, moves, direction, grid) {
+    //move the player
+		if (moves[0]) {
+			this.gamePos.x += moves[0]; 
+			this.realPos.x += moves[0]*this.ppg;
+			moves[0] = 0;
+		} else if (moves[1]) {
+			this.gamePos.y += moves[1]; 
+			this.realPos.y += moves[1]*this.ppg;
+			moves[1] = 0;
+		}
+		//draw big box
+		let s3 = this.ppg/3;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.realPos.x, this.realPos.y, this.ppg, this.ppg);
+		//draw secondary direction box
+    ctx.fillStyle = this.color2;
+    switch (direction) {
+      case 0:
+        ctx.fillRect(this.realPos.x + s3, this.realPos.y, s3, s3);
+        break;
+      case 1:
+        ctx.fillRect(this.realPos.x + 2*s3, this.realPos.y + s3, s3, s3);
+        break;
+      case 2:
+        ctx.fillRect(this.realPos.x + s3, this.realPos.y + 2*s3, s3, s3);
+        break;
+      case 3:
+        ctx.fillRect(this.realPos.x, this.realPos.y + s3, s3, s3);
+        break;
+		}
 	}
 }
