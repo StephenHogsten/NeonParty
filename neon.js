@@ -8,7 +8,7 @@
 //XX place weapons
 //XX add interaction with game Objects
 //XX switch colors around
-//   die correctly
+//XX die correctly
 //   add 'portal' game object
 //   tweak game object appearance
 
@@ -32,7 +32,10 @@ function getColor(cname) {
 	}
 }
 
-window.addEventListener('load', function() {
+window.addEventListener('load', newEverything);
+
+function newEverything() {
+	document.removeEventListener('keydown', newEverything);
 	let c = document.getElementById('my-canvas')
 	let ctx = c.getContext('2d');
 	let w = c.getAttribute('width');
@@ -41,12 +44,14 @@ window.addEventListener('load', function() {
 	let gameBoard = new GameBoard(w/pixelsPerGameUnit, h/pixelsPerGameUnit, pixelsPerGameUnit, ctx);
 	gameObject = gameBoard;
 	gameBoard.drawFoggy(ctx);
-	document.addEventListener('keydown', (event)=>pressKey(event, gameBoard));
+	let thisPressKey = (event) => pressKey(event, gameBoard);
+	document.addEventListener('keydown', thisPressKey);
 	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
-})
+}
 
 function eachFrame(gameBoard, ctx) {
 	// console.log('new frame');
+	if (gameBoard.player.isDea) return; 
 	if (gameBoard.playerMoves[0] === 0 && gameBoard.playerMoves[1] === 0) {
 		requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 		return;
@@ -56,6 +61,10 @@ function eachFrame(gameBoard, ctx) {
 }
 
 function pressKey(event, gameBoard) {
+	if (gameBoard.player.isDead) {
+		document.removeEventListener('keydown', this);
+		return;
+	}
 	let playerSpeed = 1;
 	let playerXMove = playerYMove = 0;
 	let playerDirection;
@@ -440,14 +449,12 @@ class Monster extends RoomObject{
 		this.cellType = 2;
 	}
 	interact(player, grid) {
-		console.log(player);
-		console.log(this);
 		this.health -= player.damage;
 		if (this.health <= 0) {
 			grid[this.gamePos.x][this.gamePos.y] = 1;
 			player.addXP(Math.pow(2*this.damage, 2) + 4*this.health);
 		} else {
-			player.health -= this.damage;
+			player.loseHealth(this.damage);
 		}
 	}
 }
@@ -483,6 +490,8 @@ class Player extends RoomObject {
 	constructor (grid, rooms, roomCount, ppg) {
 		super(grid, rooms, roomCount, ppg, getColor('red'), 1);
 		grid[this.gamePos.x][this.gamePos.y] = 1;
+		this.X = grid.length;
+		this.Y = grid[0].length;
 		this.color2 = getColor('orange');
 		this.health = 100;
 		this.damage = 5;
@@ -502,6 +511,7 @@ class Player extends RoomObject {
 		this.xp = 0;
 		this.xpBuckets = [0, 1000, 2500, 5000, 9000, 16000, 25000];
 		this.whichDungeon = 1;
+		this.isDead = false;
 	}
 	addXP(amount) {
 		this.xp += amount;
@@ -515,6 +525,13 @@ class Player extends RoomObject {
 			} else {
 				break;
 			}
+		}
+	}
+	loseHealth(amount) {
+		this.health -= amount;
+		if (this.health <= 0) {
+			//die
+			this.isDead = true;
 		}
 	}
 	respawn(grid, rooms, roomCount) {
@@ -602,5 +619,11 @@ class Player extends RoomObject {
 		ctx.fillText(this.health, stops[2], yblock);
 		ctx.fillText(this.weapons[this.whichWeapon], stops[3], yblock);
 		ctx.fillText(this.whichDungeon, stops[4], yblock);
+		//draw death message
+		if (!this.isDead) return;
+		ctx.fillStyle = 'white';
+		ctx.font = '50px Arial';
+		ctx.fillText('You were extinguished!', this.X*this.ppg/4, this.Y*this.ppg / 2);
+		document.addEventListener('keydown', newEverything);
 	}
 }
