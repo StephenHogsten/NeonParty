@@ -1,13 +1,14 @@
 //GAMEPLAN
-//Change colors
-//add player
-//make them move / have board be redrawn
-//fog of war
-//add game attributes (health, weapon, level)
-//place weapons
-//add interaction with game Objects
-//add 'portal' game object
-//tweak game object appearance
+//XX Change colors
+//XX add player
+//XX make them move / have board be redrawn
+//XX fog of war
+//XX display game attributes
+//XX add game attributes (health, weapon, level)
+//XX   place weapons
+//   add interaction with game Objects
+//   add 'portal' game object
+//   tweak game object appearance
 
 gameObject = {};
 function getColor(cname) {
@@ -33,11 +34,11 @@ window.addEventListener('load', function() {
 	let c = document.getElementById('my-canvas')
 	let ctx = c.getContext('2d');
 	let w = c.getAttribute('width');
-	let h = c.getAttribute('height');
+	let h = c.getAttribute('height')-70;
 	let pixelsPerGameUnit = 10;
-	let gameBoard = new GameBoard(w/pixelsPerGameUnit, h/pixelsPerGameUnit, pixelsPerGameUnit);
+	let gameBoard = new GameBoard(w/pixelsPerGameUnit, h/pixelsPerGameUnit, pixelsPerGameUnit, ctx);
 	gameObject = gameBoard;
-	gameBoard.drawEverything(ctx);
+	gameBoard.drawFoggy(ctx);
 	document.addEventListener('keydown', (event)=>pressKey(event, gameBoard));
 	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 })
@@ -48,7 +49,7 @@ function eachFrame(gameBoard, ctx) {
 		requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 		return;
 	}
-	gameBoard.drawEverything(ctx)
+	gameBoard.drawFoggy(ctx)
 	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 }
 
@@ -78,6 +79,7 @@ function pressKey(event, gameBoard) {
 	gameBoard.playerDirection = playerDirection;
 }
 
+//just for debugging
 function getGrid(grid) {
 	g = [];
 	for (let j=0; j<grid.length; j++) {
@@ -95,7 +97,7 @@ function randomPos(xmin, xmax, X) {
 }
 
 class GameBoard {
-  constructor(X, Y, ppg) {
+  constructor(X, Y, ppg, ctx) {
     let x, y;
 		this.X = X;
 		this.Y = Y;
@@ -103,43 +105,73 @@ class GameBoard {
 		this.realY = Y*ppg;
 		this.ppg = ppg;
 		this.buildEmptyGrid();
-		// create rooms
-		let roomCount = 20;
-    this.rooms = [];
-		this.doors = [];
-		let newRoom;
-		let colorVal=10;
-    for (let r=0; r<roomCount; r++) {
-			newRoom = new Room(this.grid, this.rooms, this.doors, X, Y, getColor('pink'), ppg);
-			if (!newRoom.hasOwnProperty('hasError')) {
-				this.rooms.push(newRoom); 
-			}
-    }
-		this.roomCount = this.rooms.length;
-		// add monsters
-		let monsterCount = 10;
-		this.monsters = [];
-		for (let m=0; m<monsterCount; m++) {
-			this.monsters.push(new Monster(this.grid, this.rooms, this.roomCount, ppg, 100, 15));
-		}
-		// add random health
-		let healthCount = 5;
-		this.healthCubes = [];
-		for (let h=0; h<healthCount; h++) {
-			this.healthCubes.push(new HealthCube(this.grid, this.rooms, this.roomCount, ppg, 10*Math.floor(3*Math.random()+1)));
-		}
+		this.fillWithObjects(20, 14, [4, 8, 12], [20, 25, 30], 8, [15, 20], 2);
 		// add player
 		this.player = new Player(this.grid, this.rooms, this.roomCount, ppg);
 		this.playerDirection = 0;
 		this.playerMoves = [0, 0];
+		// translation table
+		this.trans = {
+			'-1': getColor('white'),
+			'0': getColor('white'),
+			'1': getColor('pink'),
+			'2': getColor('black'),
+			'3': getColor('orange'),
+			'4': getColor('blue'),
+		}
+		// draw the info pane
+		let xblock = this.realX / 18;
+		let yblock = this.realY + 20;
+		this.stops = [1*xblock, 3*xblock, 7*xblock, 9*xblock, 14*xblock];
+		ctx.fillStyle = getColor('orange');
+		ctx.font = '20px Arial';
+		ctx.fillText('Level', this.stops[0], yblock)
+		ctx.fillText('XP to Next Level', this.stops[1], yblock);
+		ctx.fillText('Health', this.stops[2], yblock);
+		ctx.fillText('Weapon', this.stops[3], yblock);
+		ctx.fillText('Which Dungeon', this.stops[4], yblock);
 	}
 	buildEmptyGrid() {
+		// -1 means room border
 		// 0 means empty/wall, 
 		// 1 means empty room,
-		// 2 means room object
+		// 2 means monster
+		// 3 means health
+		// 4 means weapon
 		this.grid = [];
 		for (let x=0; x<this.X; x++) {
 			this.grid.push(Array(this.Y).fill(0));
+		}
+	}
+	fillWithObjects(roomCount, monsterCount, monsterDamages, monsterHealths, healthCount, healthVals, weaponCount) {
+		// create rooms
+    this.rooms = [];
+		this.doors = [];
+		let newRoom;
+    for (let r=0; r<roomCount; r++) {
+			newRoom = new Room(this.grid, this.rooms, this.doors, this.X, this.Y, getColor('pink'), this.ppg);
+			if (!newRoom.hasOwnProperty('hasError')) this.rooms.push(newRoom);
+    }
+		this.roomCount = this.rooms.length;
+		// add monsters
+		this.monsters = [];
+		let whichHealth, whichDamage;
+		for (let m=0; m<monsterCount; m++) {
+			whichHealth = monsterHealths[Math.floor(monsterHealths.length * Math.random)];
+			whichDamage = monsterDamages[Math.floor(monsterDamages.length * Math.random)];
+			this.monsters.push(new Monster(this.grid, this.rooms, this.roomCount, this.ppg, whichHealth, whichDamage));
+		}
+		// add random health
+		this.healthCubes = [];
+		let healthVal;
+		for (let h=0; h<healthCount; h++) {
+			healthVal = healthVals[Math.floor(healthVals.length*Math.random())];
+			this.healthCubes.push(new HealthCube(this.grid, this.rooms, this.roomCount, this.ppg, healthVal));
+		}
+		// add weapons
+		this.weapons = [];
+		for (let w=0; w<weaponCount; w++) {
+			this.weapons.push(new Weapon(this.grid, this.rooms, this.roomCount, this.ppg));
 		}
 	}
 	drawEverything(ctx) {
@@ -165,11 +197,51 @@ class GameBoard {
 		// player
 		this.player.draw(ctx, this.playerMoves, this.playerDirection, this.grid);
 	}
+	drawFoggy(ctx) {
+		//blackout
+		this.player.move(this.playerMoves, this.playerDirection, this.grid);
+		ctx.fillStyle = 'black';
+		ctx.fillRect(0, 0, this.realX, this.realY);
+		let px = this.player.gamePos.x;
+		let py = this.player.gamePos.y;
+		let dist=this.player.fogDist;
+		let dist2 = dist*dist;
+		let x, y;
+		for (x=Math.max(px-dist, 0); x<=px + dist; x++) {
+			if (x >= this.X) continue;
+			for (y=Math.max(py - dist, 0); y<=py + dist; y++) {
+				if (y >= this.Y) continue;
+				if (Math.pow(x-px, 2) + Math.pow(y-py, 2) > dist2) continue;
+				ctx.fillStyle = this.trans[this.grid[x][y]];
+				ctx.fillRect(x*this.ppg, y*this.ppg, this.ppg, this.ppg);
+			}
+		}
+		this.player.draw(ctx, this.realX, this.realY, this.stops);
+	}
+	//just for debugging
+	justDrawGrid(ctx) {
+		if (!ctx) ctx = document.getElementById('my-canvas').getContext('2d');
+		let colors = {
+			'-1': 'red',
+			'0': 'white',
+			'1': 'blue',
+			'2': 'green',
+			'3': 'orange',
+			'4': 'yellow'
+		};
+		let x, y;
+		for (x=0; x<this.X; x++) {
+			for (y=0; y<this.Y; y++) {
+				ctx.fillStyle = colors[this.grid[x][y]];
+				ctx.fillRect(x*this.ppg, y*this.ppg, (x+1)*this.ppg, (y+1)*this.ppg);
+			}
+		}
+	}
 }
 
 class Room {
   constructor(grid, rooms, doors, X, Y, color, ppg) {
-		let x, y, xdim, ydim, xpos, ypos;
+		let x, y, xdim, ydim, xpos, ypos, newDoor;
 		let roomsLen = rooms.length;
 		this.color = color? color: 'blue';
 		this.sides = Array(4).fill(true) 	//sides open for connections: top, right, bottom, left 
@@ -204,7 +276,7 @@ class Room {
 						if (y<0) continue;
 						if (y>=Y) break;
 						inBounds = true;
-						if (grid[x][y] === 1) {
+						if (grid[x][y] !== 0) {
 							// already open - we can't have overlaps
 							badRoom = true;
 							break;
@@ -220,7 +292,8 @@ class Room {
 				return;
 			} else {
 				// We found a place to fit our room!
-				doors.push(new Door(newStuff[0][0], newStuff[0][1], ppg, this.color));
+				newDoor = new Door(newStuff[0][0], newStuff[0][1], ppg, this.color, grid);
+				doors.push(newDoor);
 				this.parent = baseRoomIdx;
 				rooms[baseRoomIdx].sides[sideIdx] = false;
 				this.side = sideIdx;
@@ -229,13 +302,15 @@ class Room {
 		}
 		//register this part of the grid as open
 		//  include one extra in every direction to make sure rooms don't directly 'touch'
+		let newVal = 1;
 		for (x=xpos-1; x<X && x<xpos+xdim+1; x++) {
 			if (x<0) continue;
 			for (y=ypos-1; y<Y && y<ypos+ydim+1; y++) {
 				if (y<0) continue;
-				grid[x][y] = 1;
+				grid[x][y] = (x==xpos-1 || x==xpos+xdim || y==ypos-1 || y==ypos+ydim)? -1: 1;
 			}
 		}
+		if (newDoor) grid[newDoor.gamePos.x][newDoor.gamePos.y] = 1;
 		//close sides too close to edge
 		if (xpos <= 1) { this.sides[3] = false; }		
 		else if (xpos + xdim >= X - 1) { this.sides[1] = false; }
@@ -290,12 +365,12 @@ class Room {
 				xpos = randomPos(door[0] - xdim + 1, door[0], X);
 				break;
 			case 1:
-				door = [basePos.xpos + basePos.xdim, randomPos(basePos.ypos, basePos.ypos + basePos.ydim)];
+				door = [basePos.xpos + basePos.xdim, randomPos(basePos.ypos, basePos.ypos + basePos.ydim, Y)];
 				xpos = basePos.xpos + basePos.xdim + 1;
 				ypos = randomPos(door[1] - ydim + 1, door[1], Y);
 				break;
 			case 3:
-				door = [basePos.xpos - 1, randomPos(basePos.ypos, basePos.ypos+basePos.ydim)];
+				door = [basePos.xpos - 1, randomPos(basePos.ypos, basePos.ypos+basePos.ydim, Y)];
 				xpos = basePos.xpos - xdim - 1;
 				ypos = randomPos(door[1] - ydim + 1, door[1], Y);
 				break;
@@ -317,11 +392,12 @@ class Room {
 }
 
 class Door {
-	constructor(x, y, ppg, color) {
+	constructor(x, y, ppg, color, grid) {
 		this.gamePos = {x:x, y:y};
 		this.realPos = {x:x*ppg, y:y*ppg};
 		this.ppg = ppg;
 		this.color = color;
+		grid[x][y] = 1;
 	}
 	draw(ctx) {
 		ctx.fillStyle = this.color;
@@ -330,7 +406,7 @@ class Door {
 }
 
 class RoomObject { 
-	constructor(grid, rooms, roomCount, ppg, color) {
+	constructor(grid, rooms, roomCount, ppg, color, gridVal) {
 		if (!color) color = 'red';
 		this.color = color;
 		this.room = rooms[Math.floor(roomCount * Math.random())];	
@@ -347,7 +423,7 @@ class RoomObject {
 		this.realPos = {x:x*ppg, y:y*ppg};
 		this.ppg = ppg;
 		this.show = true;
-		grid[x][y] = 2;
+		grid[x][y] = gridVal? gridVal: 2;
 	}
 	draw(ctx) {
 		if (!this.show) return;
@@ -358,55 +434,97 @@ class RoomObject {
 
 class Monster extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health, damage) {
-		super(grid, rooms, roomCount, ppg, getColor('black'));
+		super(grid, rooms, roomCount, ppg, getColor('black'), 2);
 		this.health = health;
 		this.damage = damage;
 	}
 }
 
 class Weapon extends RoomObject{
-	constructor(grid, rooms, roomCount, ppg, name, damage) {
-		super(grid, rooms, roomCount, ppg, getColor('blue'));
-		this.name = name; 
-		this.damage = damage;
+	constructor(grid, rooms, roomCount, ppg) {
+		super(grid, rooms, roomCount, ppg, getColor('blue'), 4);
 	}
 }
 
 class HealthCube extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health) {
-		super(grid, rooms, roomCount, ppg, getColor('orange'));
+		super(grid, rooms, roomCount, ppg, getColor('orange'), 3);
 		this.health = health;
 	}
 }
 
 class Player extends RoomObject {
 	constructor (grid, rooms, roomCount, ppg) {
-		super(grid, rooms, roomCount, ppg, getColor('red'));
+		super(grid, rooms, roomCount, ppg, getColor('red'), 1);
 		this.color2 = getColor('orange');
 		this.health = 100;
 		this.damage = 5;
 		this.level = 1;
-		this.weapons = ['thumb paint', 'fine-tip paintbrush', 'extra-wide brush', 'paint roller', 'semi-automatic paintball blaster'];
+		this.weapons = [
+			'Thumb Paint', 
+			'Fine-tip Paintbrush', 
+			'Extra-wide Brush', 
+			'Paint Roller', 
+			'Paint Bucket',
+			'Paintball Blaster',
+			'Massive Paint Bomb'
+			];
 		this.whichWeapon = 0;
+		this.fogDist = 5;
+		this.direction = 0;
+		this.xpLeft = 1000;
+		this.whichDungeon = 1;
 	}
-	draw(ctx, moves, direction, grid) {
-    //move the player
+	respawn(grid, rooms, roomCount) {
+		this.room = rooms[Math.floor(roomCount * Math.random())];	
+		let g = this.room.gamePos;
+		let X = grid.length;
+		let Y = grid[0].length;
+		let x, y;
+		while (true) {
+			x = randomPos(g.xpos, g.xpos + g.xdim, X);
+			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
+			if (grid[x][y] === 1) break;
+		}
+		this.gamePos = {x:x, y:y};
+		this.realPos = {x:x*ppg, y:y*ppg};
+		this.ppg = ppg;
+		this.show = true;
+	}
+	move(moves, direction, grid) {
+		this.direction = direction;
+		let x = this.gamePos.x;
+		let y = this.gamePos.y;
+		let X = grid.length;
+		let Y = grid[0].length;
 		if (moves[0]) {
-			this.gamePos.x += moves[0]; 
-			this.realPos.x += moves[0]*this.ppg;
+			x += moves[0]; 
 			moves[0] = 0;
 		} else if (moves[1]) {
-			this.gamePos.y += moves[1]; 
-			this.realPos.y += moves[1]*this.ppg;
+			y += moves[1]; 
 			moves[1] = 0;
 		}
+		if (x<X && x>-1 && y<Y )
+		switch (grid[x][y]) {
+			case 1:
+				//we're in an open space
+				this.gamePos.x = x;
+				this.gamePos.y = y;
+				this.realPos.x = x*this.ppg;
+				this.realPos.y = y*this.ppg;
+				break;
+			default:
+				//keep it the same - don't move
+		}
+	}
+	draw(ctx, realX, realY, stops) {
 		//draw big box
 		let s3 = this.ppg/3;
     ctx.fillStyle = this.color;
     ctx.fillRect(this.realPos.x, this.realPos.y, this.ppg, this.ppg);
 		//draw secondary direction box
     ctx.fillStyle = this.color2;
-    switch (direction) {
+    switch (this.direction) {
       case 0:
         ctx.fillRect(this.realPos.x + s3, this.realPos.y, s3, s3);
         break;
@@ -420,5 +538,17 @@ class Player extends RoomObject {
         ctx.fillRect(this.realPos.x, this.realPos.y + s3, s3, s3);
         break;
 		}
+		//draw player info
+		// clear out old ones
+		ctx.fillStyle = 'black';
+		ctx.fillRect(0, realY+30, realX, 40);
+		ctx.fillStyle = getColor('orange');
+		ctx.font = '20px Arial';
+		let yblock = realY + 50;
+		ctx.fillText(this.level, stops[0], yblock)
+		ctx.fillText(this.xpLeft, stops[1], yblock);
+		ctx.fillText(this.health, stops[2], yblock);
+		ctx.fillText(this.weapons[this.whichWeapon], stops[3], yblock);
+		ctx.fillText(this.whichDungeon, stops[4], yblock);
 	}
 }
