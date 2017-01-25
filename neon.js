@@ -10,7 +10,8 @@
 //XX switch colors around
 //XX die correctly
 //   add 'portal' game object
-//   tweak game object appearance
+//   add boss man
+//   add victory
 
 gameObject = {};
 function getColor(cname) {
@@ -116,7 +117,13 @@ class GameBoard {
 		this.realY = Y*ppg;
 		this.ppg = ppg;
 		this.buildEmptyGrid();
-		this.fillWithObjects(20, 14, [4, 8, 12], [20, 25, 30], 8, [15, 20], 2);
+		this.levelSetup = {
+			1: [20, 14, [6, 10, 12], [20, 25, 30], 8, [15, 20], 2, 0],
+			2: [20, 20, [10, 15, 20], [25, 28, 31], 10, [15, 20], 2, 0],
+			3: [23, 25, [30, 35, 45], [50, 60, 80], 10, [20, 25], 2, 0],
+			4: [23, 25, [50, 55, 60], [70, 80, 100], 3, [30], 1, 1]
+		}
+		this.fillWithObjects.apply(this, this.levelSetup[1]);
 		// add player
 		this.player = new Player(this.grid, this.rooms, this.roomCount, ppg);
 		this.playerDirection = 0;
@@ -145,7 +152,7 @@ class GameBoard {
 			this.grid.push(Array(this.Y).fill(0));
 		}
 	}
-	fillWithObjects(roomCount, monsterCount, monsterDamages, monsterHealths, healthCount, healthVals, weaponCount) {
+	fillWithObjects(roomCount, monsterCount, monsterDamages, monsterHealths, healthCount, healthVals, weaponCount, boss) {
 		// create rooms
     this.rooms = [];
 		this.doors = [];
@@ -175,6 +182,12 @@ class GameBoard {
 		for (let w=0; w<weaponCount; w++) {
 			this.weapons.push(new Weapon(this.grid, this.rooms, this.roomCount, this.ppg));
 		}
+		// add portal
+		if (boss) {
+
+		} else {
+			this.portal = new Portal(this.grid, this.rooms, this.roomCount, this.ppg);
+		}
 	}
 	drawEverything(ctx) {
 		//background
@@ -201,7 +214,12 @@ class GameBoard {
 	}
 	drawFoggy(ctx) {
 		//blackout
-		this.player.move(this.playerMoves, this.playerDirection, this.grid);
+		if (this.player.move(this.playerMoves, this.playerDirection, this.grid)) {
+			//move to the next level
+			this.buildEmptyGrid();
+			this.fillWithObjects.apply(this, this.levelSetup[this.player.whichDungeon]);
+			this.player.respawn(this.grid, this.rooms, this.roomCount);
+		}
 		ctx.fillStyle = 'black';
 		ctx.fillRect(0, 0, this.realX, this.realY);
 		let px = this.player.gamePos.x;
@@ -461,7 +479,7 @@ class Monster extends RoomObject{
 
 class HealthCube extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health) {
-		super(grid, rooms, roomCount, ppg, getColor('orange'), 3);
+		super(grid, rooms, roomCount, ppg, getColor('orange'));
 		this.health = health;
 		this.cellType = 3;
 	}
@@ -475,7 +493,7 @@ class HealthCube extends RoomObject{
 
 class Weapon extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg) {
-		super(grid, rooms, roomCount, ppg, getColor('blue'), 4);
+		super(grid, rooms, roomCount, ppg, getColor('blue'));
 		this.cellType = 4;
 	}
 	interact(player, grid) {
@@ -483,6 +501,17 @@ class Weapon extends RoomObject{
 		player.whichWeapon += 1;
 		player.addXP(100 * player.whichWeapon);
 		player.damage += Math.min(150, player.damage);
+	}
+}
+
+class Portal extends RoomObject{
+	constructor(grid, rooms, roomCount, ppg) {
+		super(grid, rooms, roomCount, ppg, getColor('red'));
+		this.cellType = 5;
+	}
+	interact(player, grid) {
+		player.whichDungeon += 1;
+		return true;
 	}
 }
 
@@ -548,6 +577,7 @@ class Player extends RoomObject {
 		this.gamePos = {x:x, y:y};
 		this.realPos = {x:x*this.ppg, y:y*this.ppg};
 	}
+	//return true if we should go to the next level
 	move(moves, direction, grid) {
 		this.direction = direction;
 		let x = this.gamePos.x;
@@ -563,7 +593,9 @@ class Player extends RoomObject {
 		}
 		if (x>=X || x<0 || y>=Y || y<0) return false;
 		let cell = grid[x][y];
-		if (typeof(cell) === 'object') cell.interact(this, grid);
+		let goToNextLevel;
+		if (typeof(cell) === 'object') goToNextLevel = cell.interact(this, grid);
+		if (goToNextLevel) return true;
 		switch (cell) {
 			case 1:
 				//open space, let's move
@@ -618,7 +650,7 @@ class Player extends RoomObject {
 		ctx.fillText(this.xpBuckets[this.level] - this.xp, stops[1], yblock);
 		ctx.fillText(this.health, stops[2], yblock);
 		ctx.fillText(this.weapons[this.whichWeapon], stops[3], yblock);
-		ctx.fillText(this.whichDungeon, stops[4], yblock);
+		ctx.fillText(this.whichDungeon + '/4', stops[4], yblock);
 		//draw death message
 		if (!this.isDead) return;
 		ctx.fillStyle = 'white';
