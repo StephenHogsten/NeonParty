@@ -5,8 +5,10 @@
 //XX fog of war
 //XX display game attributes
 //XX add game attributes (health, weapon, level)
-//XX   place weapons
-//   add interaction with game Objects
+//XX place weapons
+//XX add interaction with game Objects
+//XX switch colors around
+//   die correctly
 //   add 'portal' game object
 //   tweak game object appearance
 
@@ -110,15 +112,6 @@ class GameBoard {
 		this.player = new Player(this.grid, this.rooms, this.roomCount, ppg);
 		this.playerDirection = 0;
 		this.playerMoves = [0, 0];
-		// translation table
-		this.trans = {
-			'-1': getColor('white'),
-			'0': getColor('white'),
-			'1': getColor('pink'),
-			'2': getColor('black'),
-			'3': getColor('orange'),
-			'4': getColor('blue'),
-		}
 		// draw the info pane
 		let xblock = this.realX / 18;
 		let yblock = this.realY + 20;
@@ -127,7 +120,7 @@ class GameBoard {
 		ctx.font = '20px Arial';
 		ctx.fillText('Level', this.stops[0], yblock)
 		ctx.fillText('XP to Next Level', this.stops[1], yblock);
-		ctx.fillText('Health', this.stops[2], yblock);
+		ctx.fillText('Lumens', this.stops[2], yblock);
 		ctx.fillText('Weapon', this.stops[3], yblock);
 		ctx.fillText('Which Dungeon', this.stops[4], yblock);
 	}
@@ -157,8 +150,8 @@ class GameBoard {
 		this.monsters = [];
 		let whichHealth, whichDamage;
 		for (let m=0; m<monsterCount; m++) {
-			whichHealth = monsterHealths[Math.floor(monsterHealths.length * Math.random)];
-			whichDamage = monsterDamages[Math.floor(monsterDamages.length * Math.random)];
+			whichHealth = monsterHealths[Math.floor(monsterHealths.length * Math.random())];
+			whichDamage = monsterDamages[Math.floor(monsterDamages.length * Math.random())];
 			this.monsters.push(new Monster(this.grid, this.rooms, this.roomCount, this.ppg, whichHealth, whichDamage));
 		}
 		// add random health
@@ -212,11 +205,17 @@ class GameBoard {
 			for (y=Math.max(py - dist, 0); y<=py + dist; y++) {
 				if (y >= this.Y) continue;
 				if (Math.pow(x-px, 2) + Math.pow(y-py, 2) > dist2) continue;
-				ctx.fillStyle = this.trans[this.grid[x][y]];
+				ctx.fillStyle = this.translateCell(x, y);
 				ctx.fillRect(x*this.ppg, y*this.ppg, this.ppg, this.ppg);
 			}
 		}
 		this.player.draw(ctx, this.realX, this.realY, this.stops);
+	}
+	translateCell(x, y) {
+		let g = this.grid[x][y];
+		if (g === -1 || g === 0) return getColor('red');
+		if (g === 1) return getColor('pink');		//room open cell
+		return g.color;
 	}
 	//just for debugging
 	justDrawGrid(ctx) {
@@ -406,7 +405,7 @@ class Door {
 }
 
 class RoomObject { 
-	constructor(grid, rooms, roomCount, ppg, color, gridVal) {
+	constructor(grid, rooms, roomCount, ppg, color) {
 		if (!color) color = 'red';
 		this.color = color;
 		this.room = rooms[Math.floor(roomCount * Math.random())];	
@@ -423,8 +422,9 @@ class RoomObject {
 		this.realPos = {x:x*ppg, y:y*ppg};
 		this.ppg = ppg;
 		this.show = true;
-		grid[x][y] = gridVal? gridVal: 2;
+		grid[x][y] = this;
 	}
+	interact(player, grid) {}
 	draw(ctx) {
 		if (!this.show) return;
 		ctx.fillStyle = this.color;
@@ -434,15 +434,21 @@ class RoomObject {
 
 class Monster extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health, damage) {
-		super(grid, rooms, roomCount, ppg, getColor('black'), 2);
+		super(grid, rooms, roomCount, ppg, getColor('black'));
 		this.health = health;
 		this.damage = damage;
+		this.cellType = 2;
 	}
-}
-
-class Weapon extends RoomObject{
-	constructor(grid, rooms, roomCount, ppg) {
-		super(grid, rooms, roomCount, ppg, getColor('blue'), 4);
+	interact(player, grid) {
+		console.log(player);
+		console.log(this);
+		this.health -= player.damage;
+		if (this.health <= 0) {
+			grid[this.gamePos.x][this.gamePos.y] = 1;
+			player.addXP(Math.pow(2*this.damage, 2) + 4*this.health);
+		} else {
+			player.health -= this.damage;
+		}
 	}
 }
 
@@ -450,12 +456,33 @@ class HealthCube extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health) {
 		super(grid, rooms, roomCount, ppg, getColor('orange'), 3);
 		this.health = health;
+		this.cellType = 3;
+	}
+	interact(player, grid) {
+		// eat the health
+		grid[this.gamePos.x][this.gamePos.y] = 1;
+		player.health += this.health;
+		player.addXP(100);
+	}
+}
+
+class Weapon extends RoomObject{
+	constructor(grid, rooms, roomCount, ppg) {
+		super(grid, rooms, roomCount, ppg, getColor('blue'), 4);
+		this.cellType = 4;
+	}
+	interact(player, grid) {
+		grid[this.gamePos.x][this.gamePos.y] = 1;
+		player.whichWeapon += 1;
+		player.addXP(100 * player.whichWeapon);
+		player.damage += Math.min(150, player.damage);
 	}
 }
 
 class Player extends RoomObject {
 	constructor (grid, rooms, roomCount, ppg) {
 		super(grid, rooms, roomCount, ppg, getColor('red'), 1);
+		grid[this.gamePos.x][this.gamePos.y] = 1;
 		this.color2 = getColor('orange');
 		this.health = 100;
 		this.damage = 5;
@@ -472,8 +499,23 @@ class Player extends RoomObject {
 		this.whichWeapon = 0;
 		this.fogDist = 5;
 		this.direction = 0;
-		this.xpLeft = 1000;
+		this.xp = 0;
+		this.xpBuckets = [0, 1000, 2500, 5000, 9000, 16000, 25000];
 		this.whichDungeon = 1;
+	}
+	addXP(amount) {
+		this.xp += amount;
+		while (true) {
+			if (this.xp > this.xpBuckets[this.level]) {
+				//level up
+				this.level += 1;
+				this.health = Math.max(2*this.health, 75*this.level);
+				this.fogDist += 1;
+				this.damage = Math.max(1.5 * this.damage, 10*(this.level - 1));
+			} else {
+				break;
+			}
+		}
 	}
 	respawn(grid, rooms, roomCount) {
 		this.room = rooms[Math.floor(roomCount * Math.random())];	
@@ -487,9 +529,7 @@ class Player extends RoomObject {
 			if (grid[x][y] === 1) break;
 		}
 		this.gamePos = {x:x, y:y};
-		this.realPos = {x:x*ppg, y:y*ppg};
-		this.ppg = ppg;
-		this.show = true;
+		this.realPos = {x:x*this.ppg, y:y*this.ppg};
 	}
 	move(moves, direction, grid) {
 		this.direction = direction;
@@ -504,25 +544,37 @@ class Player extends RoomObject {
 			y += moves[1]; 
 			moves[1] = 0;
 		}
-		if (x<X && x>-1 && y<Y )
-		switch (grid[x][y]) {
+		if (x>=X || x<0 || y>=Y || y<0) return false;
+		let cell = grid[x][y];
+		if (typeof(cell) === 'object') cell.interact(this, grid);
+		switch (cell) {
 			case 1:
-				//we're in an open space
-				this.gamePos.x = x;
-				this.gamePos.y = y;
-				this.realPos.x = x*this.ppg;
-				this.realPos.y = y*this.ppg;
+				//open space, let's move
+				this.m(x, y);
 				break;
 			default:
-				//keep it the same - don't move
+				//do nothing by default
 		}
+	}
+	m(x, y) {
+		this.gamePos.x = x;
+		this.gamePos.y = y;
+		this.realPos.x = x*this.ppg;
+		this.realPos.y = y*this.ppg;
+	}
+	makeColor() {
+		let color = Array(3).fill(0);
+		color[0] = Math.max(Math.min(this.health, 255), 0);
+		color[1] = Math.max(Math.min(this.health, 255), 0);
+		color[2] = Math.max(Math.min(this.health, 255), 0);
+		return 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
 	}
 	draw(ctx, realX, realY, stops) {
 		//draw big box
-		let s3 = this.ppg/3;
-    ctx.fillStyle = this.color;
+		ctx.fillStyle = this.makeColor()
     ctx.fillRect(this.realPos.x, this.realPos.y, this.ppg, this.ppg);
 		//draw secondary direction box
+		let s3 = this.ppg/3;
     ctx.fillStyle = this.color2;
     switch (this.direction) {
       case 0:
@@ -546,7 +598,7 @@ class Player extends RoomObject {
 		ctx.font = '20px Arial';
 		let yblock = realY + 50;
 		ctx.fillText(this.level, stops[0], yblock)
-		ctx.fillText(this.xpLeft, stops[1], yblock);
+		ctx.fillText(this.xpBuckets[this.level] - this.xp, stops[1], yblock);
 		ctx.fillText(this.health, stops[2], yblock);
 		ctx.fillText(this.weapons[this.whichWeapon], stops[3], yblock);
 		ctx.fillText(this.whichDungeon, stops[4], yblock);
