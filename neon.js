@@ -9,9 +9,10 @@
 //XX add interaction with game Objects
 //XX switch colors around
 //XX die correctly
-//   add 'portal' game object
-//   add boss man
-//   add victory
+//XX add 'portal' game object
+//XX add boss man
+//XX add victory
+//	 play tune a little bit
 
 gameObject = {};
 function getColor(cname) {
@@ -52,7 +53,7 @@ function newEverything() {
 
 function eachFrame(gameBoard, ctx) {
 	// console.log('new frame');
-	if (gameBoard.player.isDea) return; 
+	if (!gameBoard.player.state === 'normal') return; 
 	if (gameBoard.playerMoves[0] === 0 && gameBoard.playerMoves[1] === 0) {
 		requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 		return;
@@ -62,7 +63,7 @@ function eachFrame(gameBoard, ctx) {
 }
 
 function pressKey(event, gameBoard) {
-	if (gameBoard.player.isDead) {
+	if (!gameBoard.player.state === 'normal') {
 		document.removeEventListener('keydown', this);
 		return;
 	}
@@ -118,10 +119,10 @@ class GameBoard {
 		this.ppg = ppg;
 		this.buildEmptyGrid();
 		this.levelSetup = {
-			1: [20, 14, [6, 10, 12], [20, 25, 30], 8, [15, 20], 2, 0],
+			1: [20, 14, [6, 10, 12], [20, 25, 30], 8, [15, 20], 2, 1],
 			2: [20, 20, [10, 15, 20], [25, 28, 31], 10, [15, 20], 2, 0],
-			3: [23, 25, [30, 35, 45], [50, 60, 80], 10, [20, 25], 2, 0],
-			4: [23, 25, [50, 55, 60], [70, 80, 100], 3, [30], 1, 1]
+			3: [23, 25, [50, 70, 100], [100, 110, 130], 10, [20, 25], 2, 0],
+			4: [23, 25, [75, 150, 160], [100, 130, 160], 3, [30], 1, true]
 		}
 		this.fillWithObjects.apply(this, this.levelSetup[1]);
 		// add player
@@ -184,8 +185,10 @@ class GameBoard {
 		}
 		// add portal
 		if (boss) {
-
+			//making a boss
+			this.boss = new Boss(this.grid, this.rooms, this.roomCount, this.ppg);
 		} else {
+			//making a portal
 			this.portal = new Portal(this.grid, this.rooms, this.roomCount, this.ppg);
 		}
 	}
@@ -477,6 +480,45 @@ class Monster extends RoomObject{
 	}
 }
 
+class Boss {
+	constructor(grid, rooms, roomCount, ppg) {
+		let g;
+		while (true) {
+			this.room = rooms[Math.floor(roomCount * Math.random())];
+			g = this.room.gamePos;
+			if (g.xdim > 3 && g.ydim > 3) break;
+		}
+		let X = grid.length;
+		let Y = grid[0].length;
+		let x, y;
+		while (true) {
+			x = randomPos(g.xpos, g.xpos + g.xdim, X);
+			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
+			if (grid[x][y]===1 && grid[x-1][y]===1 && grid[x-1][y-1]===1 && grid[x][y-1]) break;
+		}
+		this.gamePos = {x:x, y:y};
+		this.realPos = {x:x*ppg, y:y*ppg};
+		this.ppg = ppg;
+		grid[x][y] = this;
+		grid[x-1][y] = this;
+		grid[x-1][y-1] = this;
+		grid[x][y-1] = this;
+		this.color = getColor('black');
+		this.health = 2000;
+		this.damage = 200;
+		this.cellType = 5;
+	}
+	interact(player, grid) {
+		this.health -= player.damage;
+		if (this.health <= 0) {
+			//you win
+			player.state = 'win';
+		} else {
+			player.loseHealth(this.damage);
+		}
+	}
+}
+
 class HealthCube extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health) {
 		super(grid, rooms, roomCount, ppg, getColor('orange'));
@@ -538,9 +580,9 @@ class Player extends RoomObject {
 		this.fogDist = 5;
 		this.direction = 0;
 		this.xp = 0;
-		this.xpBuckets = [0, 1000, 2500, 5000, 9000, 16000, 25000];
+		this.xpBuckets = [0, 1000, 2500, 5000, 9000, 16000, 25000, 50000, 100000];
 		this.whichDungeon = 1;
-		this.isDead = false;
+		this.state = 'normal';
 	}
 	addXP(amount) {
 		this.xp += amount;
@@ -560,7 +602,7 @@ class Player extends RoomObject {
 		this.health -= amount;
 		if (this.health <= 0) {
 			//die
-			this.isDead = true;
+			this.state = 'dead';
 		}
 	}
 	respawn(grid, rooms, roomCount) {
@@ -651,11 +693,18 @@ class Player extends RoomObject {
 		ctx.fillText(this.health, stops[2], yblock);
 		ctx.fillText(this.weapons[this.whichWeapon], stops[3], yblock);
 		ctx.fillText(this.whichDungeon + '/4', stops[4], yblock);
-		//draw death message
-		if (!this.isDead) return;
-		ctx.fillStyle = 'white';
-		ctx.font = '50px Arial';
-		ctx.fillText('You were extinguished!', this.X*this.ppg/4, this.Y*this.ppg / 2);
-		document.addEventListener('keydown', newEverything);
+		//draw message
+		switch (this.state) {
+			case 'dead':
+				ctx.fillStyle = 'white';
+				ctx.font = '50px Arial';
+				ctx.fillText('You were extinguished!', this.X*this.ppg/4, this.Y*this.ppg / 2);
+				document.addEventListener('keydown', newEverything);
+			case 'win':
+				ctx.fillStyle = 'white';
+				ctx.font = '50px Arial';
+				ctx.fillText('You Won!!!!!!', this.X*this.ppg/4, this.Y*this.ppg/2);
+				document.addEventListener('keydown', newEverything);
+		}
 	}
 }
