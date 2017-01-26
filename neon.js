@@ -12,10 +12,12 @@
 //XX add 'portal' game object
 //XX add boss man
 //XX add victory
-//	 take out old stuff
+//XX take out old stuff
 //	 play tune a little bit
 
-gameObject = {};
+let gameObject = {};
+window.addEventListener('load', newEverything);
+
 function getColor(cname) {
 	switch (cname) {
 		case 'orange': 
@@ -36,8 +38,6 @@ function getColor(cname) {
 			return 'green';
 	}
 }
-
-window.addEventListener('load', newEverything);
 
 function newEverything() {
 	document.removeEventListener('keydown', newEverything);
@@ -119,9 +119,9 @@ class GameBoard {
 		this.levelSetup = {
 			//[rooms, monsters, mdamage, mhealth, hcubes, hvals, weapons, boss or portal]
 			1: [15, 10, [5, 10], [15, 20, 25], 5, [5, 10, 15], 2, false],
-			2: [20, 20, [10, 15, 20], [25, 30, 35], 10, [15, 20], 2, 0],
-			3: [22, 30, [25, 30, 35], [30, 35, 60], 20, [20, 25], 2, 0],
-			4: [10, 100, [75, 150, 160], [100, 130, 160], 10, [100], 1, true]
+			2: [20, 20, [10, 15, 20], [25, 30, 35], 10, [15, 20, 30], 2, 0],
+			3: [22, 30, [25, 30, 35], [40, 45, 70], 20, [20, 25], 2, 0],
+			4: [10, 100, [75, 150, 160], [50, 60, 70], 10, [30, 35, 50], 1, true]
 		}
 		this.fillWithObjects.apply(this, this.levelSetup[1]);
 		// add player
@@ -411,6 +411,7 @@ class Monster extends RoomObject{
 	constructor(grid, rooms, roomCount, ppg, health, damage) {
 		super(grid, rooms, roomCount, ppg, getColor('black'));
 		this.health = health;
+		this.startHealth = health;
 		this.damage = damage;
 		this.cellType = 2;
 	}
@@ -418,7 +419,7 @@ class Monster extends RoomObject{
 		this.health -= player.damage;
 		if (this.health <= 0) {
 			grid[this.gamePos.x][this.gamePos.y] = 1;
-			player.addXP(10 * this.health);
+			player.addXP(20 * this.startHealth);
 		} else {
 			player.loseHealth(this.damage);
 		}
@@ -487,8 +488,8 @@ class Weapon extends RoomObject{
 	interact(player, grid) {
 		grid[this.gamePos.x][this.gamePos.y] = 1;
 		player.whichWeapon += 1;
-		player.addXP(500 * player.whichWeapon);
-		player.damage += whichWeapon;
+		player.addXP(150 * player.whichWeapon);
+		player.damage += player.whichWeapon;
 	}
 }
 
@@ -514,27 +515,29 @@ class Player extends RoomObject {
 		this.damage = 5;
 		this.level = 1;
 		this.weapons = [
+			'Paint Dropper',
 			'Thumb Paint', 
 			'Fine-tip Paintbrush', 
 			'Extra-wide Brush', 
 			'Paint Roller', 
 			'Paint Bucket',
 			'Paintball Blaster',
-			'Massive Paint Bomb'
+			'Massive Splatter Bomb'
 			];
 		this.whichWeapon = 0;
 		this.fogDist = 5;
 		this.direction = 0;
 		this.xp = 0;
-		this.xpBuckets = [0, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 99999999];
+		this.xpBuckets = [0, 1500, 3500, 7000, 12000, 28000, 60000, 100000, 99999999];
 		this.whichDungeon = 1;
 		this.state = 'normal';
 	}
 	addXP(amount) {
 		this.xp += amount;
 		while (true) {
-			if (this.xp > this.xpBuckets[this.level]) {
+			if (this.xp >= this.xpBuckets[this.level]) {
 				//level up
+				this.xp - this.xpBuckets[this.level];
 				this.level += 1;
 				this.health += 10*this.level;
 				this.fogDist += 1;

@@ -1,0 +1,30 @@
+function Header(props) {
+  return (
+    <div className='header'>
+      <h1>
+        Neon Party!
+      </h1>
+    </div>
+  );
+}
+
+class NeonParty extends React.Component {
+  componentDidMount() {
+    newEverything();  
+  }
+  render() {
+    return (
+      <div>
+        <Header/>
+        <div className='canvas-holder'>
+          <canvas id='my-canvas' width='800' height='620' />
+        </div>
+      </div>
+    )
+  }
+}
+
+ReactDOM.render(
+  <NeonParty/>,
+  document.getElementById('container')
+);
