@@ -73,7 +73,8 @@ function eachFrame(gameBoard, ctx) {
 
 function pressKey(event, gameBoard) {
 	let playerSpeed = 1;
-	let playerXMove = playerYMove = 0;
+	let playerXMove = 0;
+	let playerYMove = 0;
 	let playerDirection;
 	switch (event.keyCode) {
 		case 37:
@@ -437,6 +438,7 @@ class Boss {
 		while (true) {
 			x = randomPos(g.xpos, g.xpos + g.xdim, X);
 			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
+			if (x < 0 || y < 0) continue;
 			if (grid[x][y]===1 && grid[x-1][y]===1 && grid[x-1][y-1]===1 && grid[x][y-1]) break;
 		}
 		this.gamePos = {x:x, y:y};
