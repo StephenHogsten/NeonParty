@@ -117,10 +117,11 @@ class GameBoard {
 		this.pressKey = '';
 		this.buildEmptyGrid();
 		this.levelSetup = {
-			1: [20, 14, [6, 10, 12], [20, 25, 30], 8, [15, 20], 2, 1],
-			2: [20, 20, [10, 15, 20], [25, 28, 31], 10, [15, 20], 2, 0],
-			3: [23, 25, [50, 70, 100], [100, 110, 130], 10, [20, 25], 2, 0],
-			4: [23, 25, [75, 150, 160], [100, 130, 160], 3, [30], 1, true]
+			//[rooms, monsters, mdamage, mhealth, hcubes, hvals, weapons, boss or portal]
+			1: [15, 10, [5, 10], [15, 20, 25], 5, [5, 10, 15], 2, false],
+			2: [20, 20, [10, 15, 20], [25, 30, 35], 10, [15, 20], 2, 0],
+			3: [22, 30, [25, 30, 35], [30, 35, 60], 20, [20, 25], 2, 0],
+			4: [10, 100, [75, 150, 160], [100, 130, 160], 10, [100], 1, true]
 		}
 		this.fillWithObjects.apply(this, this.levelSetup[1]);
 		// add player
@@ -417,7 +418,7 @@ class Monster extends RoomObject{
 		this.health -= player.damage;
 		if (this.health <= 0) {
 			grid[this.gamePos.x][this.gamePos.y] = 1;
-			player.addXP(Math.pow(2*this.damage, 2) + 4*this.health);
+			player.addXP(10 * this.health);
 		} else {
 			player.loseHealth(this.damage);
 		}
@@ -449,8 +450,8 @@ class Boss {
 		grid[x-1][y-1] = this;
 		grid[x][y-1] = this;
 		this.color = getColor('black');
-		this.health = 2000;
-		this.damage = 200;
+		this.health = 500;
+		this.damage = 50;
 		this.cellType = 5;
 	}
 	interact(player, grid) {
@@ -474,7 +475,7 @@ class HealthCube extends RoomObject{
 		// eat the health
 		grid[this.gamePos.x][this.gamePos.y] = 1;
 		player.health += this.health;
-		player.addXP(100);
+		player.addXP(10 * this.health);
 	}
 }
 
@@ -486,8 +487,8 @@ class Weapon extends RoomObject{
 	interact(player, grid) {
 		grid[this.gamePos.x][this.gamePos.y] = 1;
 		player.whichWeapon += 1;
-		player.addXP(100 * player.whichWeapon);
-		player.damage += Math.min(150, player.damage);
+		player.addXP(500 * player.whichWeapon);
+		player.damage += whichWeapon;
 	}
 }
 
@@ -525,7 +526,7 @@ class Player extends RoomObject {
 		this.fogDist = 5;
 		this.direction = 0;
 		this.xp = 0;
-		this.xpBuckets = [0, 1000, 2500, 5000, 9000, 16000, 25000, 50000, 100000];
+		this.xpBuckets = [0, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 99999999];
 		this.whichDungeon = 1;
 		this.state = 'normal';
 	}
@@ -535,9 +536,9 @@ class Player extends RoomObject {
 			if (this.xp > this.xpBuckets[this.level]) {
 				//level up
 				this.level += 1;
-				this.health = Math.max(2*this.health, 75*this.level);
+				this.health += 10*this.level;
 				this.fogDist += 1;
-				this.damage = Math.max(1.5 * this.damage, 10*(this.level - 1));
+				this.damage += this.level;
 			} else {
 				break;
 			}
