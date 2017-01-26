@@ -21,6 +21,8 @@ function getColor(cname) {
 			return "#ffa300";
 		case 'red': 
 			return "#cf0060";
+		case 'green':
+			return "#39FF14"
 		case 'pink': 
 			return "#ff00ff";
 		case 'blue': 
@@ -46,14 +48,20 @@ function newEverything() {
 	let gameBoard = new GameBoard(w/pixelsPerGameUnit, h/pixelsPerGameUnit, pixelsPerGameUnit, ctx);
 	gameObject = gameBoard;
 	gameBoard.drawFoggy(ctx);
-	let thisPressKey = (event) => pressKey(event, gameBoard);
-	document.addEventListener('keydown', thisPressKey);
+	gameBoard.pressKey = function(event) {
+		if (gameBoard.player.state !== 'normal') {
+			document.removeEventListener('keydown', gameBoard.pressKey);
+			return;
+		}
+		pressKey(event, gameBoard);
+	};
+	document.addEventListener('keydown', gameBoard.pressKey);
 	requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 }
 
 function eachFrame(gameBoard, ctx) {
 	// console.log('new frame');
-	if (!gameBoard.player.state === 'normal') return; 
+	if (gameBoard.player.state !== 'normal') return; 
 	if (gameBoard.playerMoves[0] === 0 && gameBoard.playerMoves[1] === 0) {
 		requestAnimationFrame(() => eachFrame(gameBoard, ctx));
 		return;
@@ -63,10 +71,6 @@ function eachFrame(gameBoard, ctx) {
 }
 
 function pressKey(event, gameBoard) {
-	if (!gameBoard.player.state === 'normal') {
-		document.removeEventListener('keydown', this);
-		return;
-	}
 	let playerSpeed = 1;
 	let playerXMove = playerYMove = 0;
 	let playerDirection;
@@ -117,6 +121,7 @@ class GameBoard {
 		this.realX = X*ppg;
 		this.realY = Y*ppg;
 		this.ppg = ppg;
+		this.pressKey = '';
 		this.buildEmptyGrid();
 		this.levelSetup = {
 			1: [20, 14, [6, 10, 12], [20, 25, 30], 8, [15, 20], 2, 1],
@@ -130,6 +135,8 @@ class GameBoard {
 		this.playerDirection = 0;
 		this.playerMoves = [0, 0];
 		// draw the info pane
+		ctx.fillStyle = getColor('black');
+		ctx.fillRect(0, this.realY, this.realX, 70);
 		let xblock = this.realX / 18;
 		let yblock = this.realY + 20;
 		this.stops = [1*xblock, 3*xblock, 7*xblock, 9*xblock, 14*xblock];
@@ -223,7 +230,7 @@ class GameBoard {
 			this.fillWithObjects.apply(this, this.levelSetup[this.player.whichDungeon]);
 			this.player.respawn(this.grid, this.rooms, this.roomCount);
 		}
-		ctx.fillStyle = 'black';
+		ctx.fillStyle = getColor('black');
 		ctx.fillRect(0, 0, this.realX, this.realY);
 		let px = this.player.gamePos.x;
 		let py = this.player.gamePos.y;
@@ -243,7 +250,7 @@ class GameBoard {
 	}
 	translateCell(x, y) {
 		let g = this.grid[x][y];
-		if (g === -1 || g === 0) return getColor('red');
+		if (g === -1 || g === 0) return getColor('green');
 		if (g === 1) return getColor('pink');		//room open cell
 		return g.color;
 	}
@@ -683,7 +690,7 @@ class Player extends RoomObject {
 		}
 		//draw player info
 		// clear out old ones
-		ctx.fillStyle = 'black';
+		ctx.fillStyle = getColor('black');
 		ctx.fillRect(0, realY+30, realX, 40);
 		ctx.fillStyle = getColor('orange');
 		ctx.font = '20px Arial';
@@ -700,6 +707,7 @@ class Player extends RoomObject {
 				ctx.font = '50px Arial';
 				ctx.fillText('You were extinguished!', this.X*this.ppg/4, this.Y*this.ppg / 2);
 				document.addEventListener('keydown', newEverything);
+				break;
 			case 'win':
 				ctx.fillStyle = 'white';
 				ctx.font = '50px Arial';
