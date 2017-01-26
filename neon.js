@@ -12,6 +12,7 @@
 //XX add 'portal' game object
 //XX add boss man
 //XX add victory
+//	 take out old stuff
 //	 play tune a little bit
 
 gameObject = {};
@@ -96,15 +97,6 @@ function pressKey(event, gameBoard) {
 	gameBoard.playerDirection = playerDirection;
 }
 
-//just for debugging
-function getGrid(grid) {
-	g = [];
-	for (let j=0; j<grid.length; j++) {
-		g.push(grid.reduce((last, curr)=>last.concat(curr[j]), []).join(''));
-	}
-	return g.join('\n');
-}
-
 function randomPos(xmin, xmax, X) {
 	//completely random
 	xmin = Math.max(xmin, 0);
@@ -170,6 +162,14 @@ class GameBoard {
 			if (!newRoom.hasOwnProperty('hasError')) this.rooms.push(newRoom);
     }
 		this.roomCount = this.rooms.length;
+		// add portal
+		if (boss) {
+			//making a boss
+			this.boss = new Boss(this.grid, this.rooms, this.roomCount, this.ppg);
+		} else {
+			//making a portal
+			this.portal = new Portal(this.grid, this.rooms, this.roomCount, this.ppg);
+		}
 		// add monsters
 		this.monsters = [];
 		let whichHealth, whichDamage;
@@ -190,37 +190,6 @@ class GameBoard {
 		for (let w=0; w<weaponCount; w++) {
 			this.weapons.push(new Weapon(this.grid, this.rooms, this.roomCount, this.ppg));
 		}
-		// add portal
-		if (boss) {
-			//making a boss
-			this.boss = new Boss(this.grid, this.rooms, this.roomCount, this.ppg);
-		} else {
-			//making a portal
-			this.portal = new Portal(this.grid, this.rooms, this.roomCount, this.ppg);
-		}
-	}
-	drawEverything(ctx) {
-		//background
-		ctx.fillStyle = getColor('white');
-		ctx.fillRect(0, 0, this.realX, this.realY)
-		// rooms
-		for (let r=0; r<this.roomCount; r++) {
-			this.rooms[r].draw(ctx);
-		}
-		// doors
-		for (let d=0; d<this.doors.length; d++) {
-			this.doors[d].draw(ctx);
-		}
-		// monsters 
-		for (let m=0; m<this.monsters.length; m++) {
-			this.monsters[m].draw(ctx);
-		}
-		// health cubes
-		for (let h=0; h<this.healthCubes.length; h++) {
-			this.healthCubes[h].draw(ctx);
-		}
-		// player
-		this.player.draw(ctx, this.playerMoves, this.playerDirection, this.grid);
 	}
 	drawFoggy(ctx) {
 		//blackout
@@ -242,36 +211,17 @@ class GameBoard {
 			for (y=Math.max(py - dist, 0); y<=py + dist; y++) {
 				if (y >= this.Y) continue;
 				if (Math.pow(x-px, 2) + Math.pow(y-py, 2) > dist2) continue;
-				ctx.fillStyle = this.translateCell(x, y);
+				ctx.fillStyle = this.translateCellColor(x, y);
 				ctx.fillRect(x*this.ppg, y*this.ppg, this.ppg, this.ppg);
 			}
 		}
 		this.player.draw(ctx, this.realX, this.realY, this.stops);
 	}
-	translateCell(x, y) {
+	translateCellColor(x, y) {
 		let g = this.grid[x][y];
 		if (g === -1 || g === 0) return getColor('green');
 		if (g === 1) return getColor('pink');		//room open cell
 		return g.color;
-	}
-	//just for debugging
-	justDrawGrid(ctx) {
-		if (!ctx) ctx = document.getElementById('my-canvas').getContext('2d');
-		let colors = {
-			'-1': 'red',
-			'0': 'white',
-			'1': 'blue',
-			'2': 'green',
-			'3': 'orange',
-			'4': 'yellow'
-		};
-		let x, y;
-		for (x=0; x<this.X; x++) {
-			for (y=0; y<this.Y; y++) {
-				ctx.fillStyle = colors[this.grid[x][y]];
-				ctx.fillRect(x*this.ppg, y*this.ppg, (x+1)*this.ppg, (y+1)*this.ppg);
-			}
-		}
 	}
 }
 
@@ -420,11 +370,6 @@ class Room {
 		let xdim = Math.floor(x43*Math.pow(Math.random()-0.5, 3) + x6) + 2;
 		return xdim;
 	}
-	draw(ctx) {
-		ctx.fillStyle = this.color;
-		let p = this.realPos;
-		ctx.fillRect(p.xpos, p.ypos, p.xdim, p.ydim);
-	}
 }
 
 class Door {
@@ -434,10 +379,6 @@ class Door {
 		this.ppg = ppg;
 		this.color = color;
 		grid[x][y] = 1;
-	}
-	draw(ctx) {
-		ctx.fillStyle = this.color;
-		ctx.fillRect(this.realPos.x, this.realPos.y, this.ppg, this.ppg);
 	}
 }
 
@@ -462,11 +403,6 @@ class RoomObject {
 		grid[x][y] = this;
 	}
 	interact(player, grid) {}
-	draw(ctx) {
-		if (!this.show) return;
-		ctx.fillStyle = this.color;
-		ctx.fillRect(this.realPos.x, this.realPos.y, this.ppg, this.ppg);
-	}
 }
 
 class Monster extends RoomObject{
