@@ -13,10 +13,16 @@
 //XX add boss man
 //XX add victory
 //XX take out old stuff
-//	 play tune a little bit
+//XX play tune a little bit 
 
-let gameObject = {};
+//future ideas: 
+//	make different room object shapes
+//	make enemies change color depending on health / damage
+//	make enemies move
+//	actual gun / projectiles
+
 window.addEventListener('load', newEverything);
+let gameObject = {};
 
 function getColor(cname) {
 	switch (cname) {
@@ -26,6 +32,8 @@ function getColor(cname) {
 			return "#cf0060";
 		case 'green':
 			return "#39FF14"
+		case 'light-pink':
+			return "#ff33ff";
 		case 'pink': 
 			return "#ff00ff";
 		case 'blue': 
@@ -119,9 +127,9 @@ class GameBoard {
 		this.levelSetup = {
 			//[rooms, monsters, mdamage, mhealth, hcubes, hvals, weapons, boss or portal]
 			1: [15, 10, [5, 10], [15, 20, 25], 5, [5, 10, 15], 2, false],
-			2: [20, 20, [10, 15, 20], [25, 30, 35], 10, [15, 20, 30], 2, 0],
-			3: [22, 30, [25, 30, 35], [40, 45, 70], 20, [20, 25], 2, 0],
-			4: [10, 100, [75, 150, 160], [50, 60, 70], 10, [30, 35, 50], 1, true]
+			2: [20, 20, [10, 15, 20], [19, 24, 29], 10, [15, 20, 30], 2, 0],
+			3: [22, 30, [25, 30, 35], [38, 43, 53], 20, [15, 35, 35], 2, 0],
+			4: [10, 100, [75, 80, 160], [50, 60, 70], 10, [30, 35, 50], 1, true]
 		}
 		this.fillWithObjects.apply(this, this.levelSetup[1]);
 		// add player
@@ -223,6 +231,7 @@ class GameBoard {
 		let g = this.grid[x][y];
 		if (g === -1 || g === 0) return getColor('green');
 		if (g === 1) return getColor('pink');		//room open cell
+		if (g === 1.5) return getColor('light-pink');
 		return g.color;
 	}
 }
@@ -325,6 +334,7 @@ class Room {
 		let r;
 		let roomsLen = rooms.length;
 		while (true) {
+			console.log('picking room branch');
 			r = Math.floor(roomsLen * Math.random())
 			baseRoom = rooms[r];
 			baseRoomSides = baseRoom.sides;
@@ -333,6 +343,7 @@ class Room {
 		//pick a side 
 		let sideIdx;
 		while (true) {
+			console.log('picking side');
 			sideIdx = Math.floor(4 * Math.random());		
 			if (baseRoomSides[sideIdx]) break;
 		}
@@ -388,12 +399,12 @@ class RoomObject {
 	constructor(grid, rooms, roomCount, ppg, color) {
 		if (!color) color = 'red';
 		this.color = color;
-		this.room = rooms[Math.floor(roomCount * Math.random())];	
-		let g = this.room.gamePos;
 		let X = grid.length;
 		let Y = grid[0].length;
-		let x, y;
+		let g, x, y;
 		while (true) {
+			this.room = rooms[Math.floor(roomCount * Math.random())];	
+			g = this.room.gamePos;
 			x = randomPos(g.xpos, g.xpos + g.xdim, X);
 			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
 			if (grid[x][y] === 1) break;
@@ -430,6 +441,7 @@ class Boss {
 	constructor(grid, rooms, roomCount, ppg) {
 		let g;
 		while (true) {
+			console.log('picking boss room');
 			this.room = rooms[Math.floor(roomCount * Math.random())];
 			g = this.room.gamePos;
 			if (g.xdim > 3 && g.ydim > 3) break;
@@ -438,6 +450,7 @@ class Boss {
 		let Y = grid[0].length;
 		let x, y;
 		while (true) {
+			console.log('picking boss location');
 			x = randomPos(g.xpos, g.xpos + g.xdim, X);
 			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
 			if (x < 0 || y < 0) continue;
@@ -528,7 +541,7 @@ class Player extends RoomObject {
 		this.fogDist = 5;
 		this.direction = 0;
 		this.xp = 0;
-		this.xpBuckets = [0, 1500, 3500, 7000, 12000, 28000, 60000, 100000, 99999999];
+		this.xpBuckets = [0, 1500, 3500, 7000, 12000, 28000, 60000, 86000, 150000, 999999999];
 		this.whichDungeon = 1;
 		this.state = 'normal';
 	}
@@ -555,12 +568,13 @@ class Player extends RoomObject {
 		}
 	}
 	respawn(grid, rooms, roomCount) {
-		this.room = rooms[Math.floor(roomCount * Math.random())];	
-		let g = this.room.gamePos;
 		let X = grid.length;
 		let Y = grid[0].length;
-		let x, y;
+		let g, x, y;
 		while (true) {
+			this.room = rooms[Math.floor(roomCount * Math.random())];	
+			let g = this.room.gamePos;
+			console.log('placing player');
 			x = randomPos(g.xpos, g.xpos + g.xdim, X);
 			y = randomPos(g.ypos, g.ypos + g.ydim, Y);
 			if (grid[x][y] === 1) break;
@@ -573,6 +587,7 @@ class Player extends RoomObject {
 		this.direction = direction;
 		let x = this.gamePos.x;
 		let y = this.gamePos.y;
+		grid[x][y] = 1.5;
 		let X = grid.length;
 		let Y = grid[0].length;
 		if (moves[0]) {
@@ -588,6 +603,7 @@ class Player extends RoomObject {
 		if (typeof(cell) === 'object') goToNextLevel = cell.interact(this, grid);
 		if (goToNextLevel) return true;
 		switch (cell) {
+			case 1.5:
 			case 1:
 				//open space, let's move
 				this.m(x, y);
